@@ -1,17 +1,15 @@
 ############################################
-# Stock Market Prediction Algorithm
+# Image Classification in Python
 # ------------------------------------------
 # Created by  : Adam Nguyen
 # Updated by  : Adam Nguyen
-# Created at  : 06/31/2015
+# Created at  : 05/12/2015
 # Updated at  : xx/xx/xxxx
-# Description : Prediction
+# Description : Classification
 ############################################
-#Modeled from http://francescopochetti.com/stock-market-prediction-part-introduction/
-#from backtest import Strategy, Portfolio
-#https://www.quantstart.com/articles/Research-Backtesting-Environments-in-Python-with-pandas
+#http://scikit-learn.org/stable/tutorial/basic/tutorial.html
 
-##Import Libraries
+##Download Appripriate Packages
 import cPickle
 import numpy as np
 import pandas as pd
@@ -30,7 +28,9 @@ import re
 from dateutil import parser
 import os
 
-##Set working directory
+#from backtest import Strategy, Portfolio
+#https://www.quantstart.com/articles/Research-Backtesting-Environments-in-Python-with-pandas
+
 os.chdir('C:/Users/adam.nguyen/Desktop/iPython')
 print(os.getcwd())
 
@@ -100,6 +100,7 @@ def applyRollMeanDelayReturns(datasets, delta):
             
     return datasets
 
+
 def mergeDataframes(datasets, index, cut):
 
     subset = []
@@ -164,6 +165,7 @@ def performClassification(x_train, y_train, x_test, y_test, method, parameters, 
     
     elif method == 'QDA':
         return performQDAClass(x_train, y_train, x_test, y_test, parameters, fout, savemodel)
+
 
 ##Machine Learning Algorithms
 
@@ -300,7 +302,47 @@ def performTimeSeriesCV(x_train, y_train, number_folds, algorithm, parameters):
         x_testFold = x[index + 1:]
         y_testFold = y[index + 1:]
 
-        accuracies[i-2] = performClassification(x_trainFolds, y_trainFolds, x_testFold, y_testFold, algorithm, parameters, 'GSPC', True)
+        accuracies[i-2] = performClassification(x_trainFolds, y_trainFolds, x_testFold, y_testFold, algorithm, parameters, 'GSPC', False)
+        
+        print 'Accuracy on fold ' + str(i) + ': ', accuracies[i-2]
+        
+    return accuracies.mean()
+
+x_train = data_prep[0]
+y_train = data_prep[1]
+number_folds = 10
+algorithm = 'QDA'
+parameters = []
+
+k = int(np.floor(float(x_train.shape[0]) / number_folds)) #Size of each fold
+accuracies = np.zeros(number_folds-1) #returns an array of just zeroes to be filled with scores
+
+print k #fold size
+print accuracies
+
+
+    for i in range(2, number_folds-1):
+        print ''
+        
+        split = float(i-1)/i #Identifies the fold
+        
+        print 'Splitting the first ' + str(i) + ' chunks at ' + str(i-1) + '/' + str(i)
+        
+        x = x_train[:(k*i)] #dynamically adjusted training sets based on fold
+        y = y_train[:(k*i)]     
+        print 'Size of train + test: ', x.shape
+        
+        index = int(np.floor(x.shape[0] * split)) #Cumulative fold / total folds
+        
+        #Training Folds
+        x_trainFolds = x[:index]
+        y_trainFolds = y[:index]
+
+        #Testing Folds
+        x_testFold = x[index + 1:]
+        y_testFold = y[index + 1:]
+
+        accuracies[i-2] = performClassification(x_trainFolds, y_trainFolds, x_testFold, y_testFold, algorithm, parameters, 'GSPC', False)
         
         print 'Accuracy on fold ' + str(i) + ': ', accuracies[i-2]
         
@@ -341,8 +383,12 @@ def performFeatureSelection(maxdeltas, maxlags, fout, cut, start_test, path_data
             
             print performCV(x_train, y_train, folds, method, parameters, fout, savemodel)
             print ''
+            
 
-###Run Stock Analysis
+
+###Commence Analysis
+data_select = performFeatureSelection(7, 7, 'GSPC', '2014-01-01', '2012-01-01', data_raw, True, 'RF', 10, [])
+
 data = getStockDataFromWeb('^GSPC', '2012-01-01', '2015-01-01')
 
 data_roll = applyRollMeanDelayReturns(data, 7)
@@ -364,4 +410,34 @@ np.count_nonzero(np.isnan(data_cut))
 data_prep = prepareDataForClassification(data_cut, '2014-01-01')
 
 algo = ['RF', 'KNN', 'SVM', 'ADA', 'GTB', 'QDA']
+
+print data_cut
+
+#data_cut.to_csv('test.csv')
+#print data_cut.shape #Shape
+#data_cut.iloc[:500, 0] #Target
+#data_cut.iloc[:500, 1:] #Core
+
+#data_cut.iloc[501:, 0] #Target
+#data_cut.iloc[501:, 1:] #Core
+
+#Zero processing
+for k in [0, 2]:
+    temp = data_prep[k]
+    for i in range(temp.shape[0]):
+        for j in range(temp.shape[1]):
+            if temp.iloc[i, j] < 0.0001:
+                temp.iloc[i, j] = 0.0001
+
+output = []
+for i in algo:
+    output.append(performTimeSeriesCV(data_prep[0], data_prep[1], 10, i, None))
+
+
+print output
+
+temp = performClassification(data_prep[0], data_prep[1], data_prep[2], data_prep[3], 'ADA', [], '^GSPC', False)
+print temp
+
+performTimeSeriesCV(data_prep[0], data_prep[1], 10, 'QDA', None)
 
